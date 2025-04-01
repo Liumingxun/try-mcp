@@ -8,13 +8,15 @@
   "keywords": [],
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "jiti index.ts",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "catalog:"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^4.11.0",
+    "@types/node": "^22.13.14",
     "eslint": "^9.23.0",
     "eslint-plugin-format": "^1.0.1",
     "jiti": "^2.4.2",

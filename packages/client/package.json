@@ -9,9 +9,10 @@
   "keywords": [],
   "main": "index.js",
   "scripts": {
-    "serve": "pnpm jiti ./index.ts"
+    "serve": "jiti ./index.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:"
+    "@modelcontextprotocol/sdk": "catalog:",
+    "openai": "^4.90.0"
   }
 }
