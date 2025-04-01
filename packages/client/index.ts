@@ -40,13 +40,14 @@ export function createClient({ transport }: { transport: TransportType }) {
         tools,
       })
     }).then(({ choices: [choice] }) => {
+      messages.push(choice.message)
       if (choice.finish_reason === 'tool_calls') {
         choice.message.tool_calls!.forEach(async (tool) => {
           const call_result = await mcpClient.callTool({
             name: tool.function.name,
-            arguments: JSON.parse(tool.function.arguments),
+            arguments: JSON.parse(tool.function.arguments), // TODO: Note that the model does not always generate valid JSON, and may hallucinate parameters not defined by your function schema.
           })
-          messages.push(choice.message, {
+          messages.push({
             role: 'tool',
             tool_call_id: tool.id,
             content: JSON.stringify(call_result.content),
@@ -54,6 +55,7 @@ export function createClient({ transport }: { transport: TransportType }) {
         })
         return chat(messages)
       }
+      console.log('-1', JSON.stringify(messages, null, 2)) // TODO: replace with a logger
       return choice
     })
   }
