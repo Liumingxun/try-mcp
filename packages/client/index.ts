@@ -1,95 +1,66 @@
-/* eslint-disable no-console */
-/* eslint-disable antfu/no-top-level-await */
+import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse'
+import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio'
+import type { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket'
 import type O from 'openai'
 import type { ChatCompletionTool } from 'openai/resources/chat'
-import process, { loadEnvFile } from 'node:process'
+
+import process from 'node:process'
 import { Client } from '@modelcontextprotocol/sdk/client/index'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio'
 import { OpenAI } from 'openai'
 
-loadEnvFile('.env')
+type TransportType = WebSocketClientTransport | SSEClientTransport | StdioClientTransport
 
-const transport = new StdioClientTransport({
-  command: 'pnpm',
-  args: ['jiti', '../server/index.ts'],
-})
+export type MessageType = O.Chat.Completions.ChatCompletionMessageParam
 
-const mcpClient = new Client({
-  name: 'example-client',
-  version: '0.0.1',
-})
-
-await mcpClient.connect(transport)
-
-// List prompts
-const prompts = await mcpClient.listTools()
-console.log(JSON.stringify(prompts.tools))
-
-mcpClient.callTool({
-  name: 'echo',
-  arguments: {
-    input: 'Hello world!',
-  },
-}).then((result) => {
-  console.log('Tool result:', result)
-}).catch((err) => {
-  console.error('Error calling tool:', err)
-})
-
-// using model
-const messages: O.Chat.Completions.ChatCompletionMessageParam[] = [
-  {
-    role: 'system',
-    content: 'you\'re a echo bot, do nothing except echo back what you receive with you tool',
-  },
-  {
-    role: 'user',
-    content: '我不是人工智能',
-  },
-]
-
-const client = new OpenAI({
-  baseURL: 'https://api.deepseek.com',
-  apiKey: `${process.env.API_KEY}`,
-})
-
-async function sendMessages(messages: O.Chat.Completions.ChatCompletionMessageParam[]) {
-  const response = await client.chat.completions.create({
-    model: 'deepseek-chat',
-    messages,
-    tools: (await mcpClient.listTools()).tools.map<ChatCompletionTool>(tool => ({
-      function: {
-        name: tool.name,
-        parameters: tool.inputSchema,
-      },
-      type: 'function',
-    })),
+export function createClient({ transport }: { transport: TransportType }) {
+  const _client = new OpenAI({
+    baseURL: 'https://api.deepseek.com',
+    apiKey: `${process.env.API_KEY}`,
   })
-  return response.choices[0].message
-}
 
-const res = await sendMessages(messages)
+  const mcpClient = new Client({
+    name: 'example-client',
+    version: '0.0.1',
+  })
+  const connect = () => mcpClient.connect(transport)
 
-messages.push(res)
-const tool_calls = res.tool_calls
-
-if (tool_calls) {
-  for (const tool of tool_calls) {
-    const call = await mcpClient.callTool({
-      name: tool.function.name,
-      arguments: JSON.parse(tool.function.arguments),
-    })
-    console.log(call)
-    messages.push({
-      role: 'tool',
-      tool_call_id: tool.id,
-      content: JSON.stringify((call.content as O.Chat.Completions.ChatCompletionContentPartText[])[0].text),
+  const chat = async (messages: O.Chat.Completions.ChatCompletionMessageParam[]): Promise<O.Chat.Completions.ChatCompletion.Choice> => {
+    return mcpClient.listTools().then<ChatCompletionTool[]>(({ tools }) =>
+      tools.map(tool => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          parameters: tool.inputSchema,
+        },
+      })),
+    ).then((tools) => {
+      return _client.chat.completions.create({
+        model: 'deepseek-chat',
+        messages,
+        tools,
+      })
+    }).then(({ choices: [choice] }) => {
+      if (choice.finish_reason === 'tool_calls') {
+        choice.message.tool_calls!.forEach(async (tool) => {
+          const call_result = await mcpClient.callTool({
+            name: tool.function.name,
+            arguments: JSON.parse(tool.function.arguments),
+          })
+          messages.push(choice.message, {
+            role: 'tool',
+            tool_call_id: tool.id,
+            content: JSON.stringify(call_result.content),
+          })
+        })
+        return chat(messages)
+      }
+      return choice
     })
   }
+
+  return {
+    _client,
+    connect,
+    chat,
+  }
 }
-
-console.log(messages)
-
-const res2 = await sendMessages(messages)
-
-console.log(res2.content)
