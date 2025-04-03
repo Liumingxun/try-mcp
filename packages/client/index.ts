@@ -33,29 +33,31 @@ export function createClient({ transport }: { transport: TransportType }) {
           parameters: tool.inputSchema,
         },
       })),
-    ).then((tools) => {
-      return _client.chat.completions.create({
+    ).then(tools =>
+      _client.chat.completions.create({
         model: 'deepseek-chat',
         messages,
         tools,
-      })
-    }).then(({ choices: [choice] }) => {
+      }),
+    ).then(({ choices: [choice] }) => {
       messages.push(choice.message)
+      // console.log('-1', JSON.stringify(messages, null, 2))
       if (choice.finish_reason === 'tool_calls') {
-        choice.message.tool_calls!.forEach(async (tool) => {
-          const call_result = await mcpClient.callTool({
+        const toolCallPromises = choice.message.tool_calls!.map(tool =>
+          mcpClient.callTool({
             name: tool.function.name,
-            arguments: JSON.parse(tool.function.arguments), // TODO: Note that the model does not always generate valid JSON, and may hallucinate parameters not defined by your function schema.
-          })
-          messages.push({
-            role: 'tool',
-            tool_call_id: tool.id,
-            content: JSON.stringify(call_result.content),
-          })
-        })
-        return chat(messages)
+            arguments: JSON.parse(tool.function.arguments),
+          }).then((call_result) => {
+            messages.push({
+              role: 'tool',
+              tool_call_id: tool.id,
+              content: JSON.stringify(call_result.content),
+            })
+          }),
+        )
+        return Promise.all(toolCallPromises).then(() => chat(messages))
       }
-      console.log('-1', JSON.stringify(messages, null, 2)) // TODO: replace with a logger
+      // console.log('-1', JSON.stringify(messages, null, 2))
       return choice
     })
   }

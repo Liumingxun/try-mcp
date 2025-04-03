@@ -8,9 +8,14 @@ const mcpServer = new McpServer({
   version: '0.0.1',
 })
 
-mcpServer.tool('echo', { input: z.string() }, args => ({
-  content: [{ type: 'text', text: args.input }],
-}))
+mcpServer.tool('echo', { input: z.string() }, (args) => {
+  // sleep for 1 second to simulate a delay
+  return new Promise((resolve) => {
+    setTimeout(() => resolve({
+      content: [{ type: 'text', text: args.input }],
+    }), 1000)
+  })
+})
 
 const transport = new StdioServerTransport()
 await mcpServer.connect(transport)
