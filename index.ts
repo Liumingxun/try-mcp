@@ -6,11 +6,30 @@ import { createClient } from './packages/client'
 
 loadEnvFile('.env')
 
-const transport = new StdioClientTransport({
+const echoTransport = new StdioClientTransport({
   command: 'pnpm',
   args: ['jiti', './packages/server/index.ts'],
 })
-const client = createClient({ transport })
+
+const weatherTransport = new StdioClientTransport({
+  command: 'pnpm',
+  args: ['jiti', './packages/server/weather.ts'],
+})
+
+const client = createClient({ mcpServer: [
+  {
+    name: 'echo',
+    transport: echoTransport,
+  },
+  {
+    name: 'weather',
+    transport: weatherTransport,
+  },
+] })
+
+const messages: MessageType[] = [
+  // {role: 'system', content: 'you are a echo bot that repeats everything I say with your tool'},
+]
 
 client.connect().then(() => {
   process.stdout.write('> ')
@@ -20,16 +39,10 @@ client.connect().then(() => {
       return
     }
 
-    const messages: MessageType[] = [
-      {
-        role: 'system',
-        content: 'you\'re a echo bot, you must echo back what you receive with you tool',
-      },
-      {
-        role: 'user',
-        content: input,
-      },
-    ]
+    messages.push({
+      role: 'user',
+      content: input,
+    })
 
     client.chat(messages).then((response) => {
       process.stdout.write(`< ${response.message.content}\n`)
