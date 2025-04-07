@@ -1,12 +1,11 @@
 {
-  "name": "mcp",
+  "name": "trymcp",
   "version": "1.0.0",
   "packageManager": "pnpm@10.6.3",
   "description": "",
   "author": "",
   "license": "ISC",
   "keywords": [],
-  "main": "index.js",
   "scripts": {
     "start": "jiti index.ts",
     "lint:fix": "eslint . --fix"
