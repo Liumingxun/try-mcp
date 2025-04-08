@@ -1,63 +1,108 @@
 import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse'
 import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio'
 import type { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket'
+import type { Tool as MCPTool } from '@modelcontextprotocol/sdk/types'
 import type O from 'openai'
 import type { ChatCompletionTool } from 'openai/resources/chat'
-
 import process from 'node:process'
 import { Client } from '@modelcontextprotocol/sdk/client/index'
 import { OpenAI } from 'openai'
 
 type TransportType = WebSocketClientTransport | SSEClientTransport | StdioClientTransport
+interface MCPServerOptions {
+  transport: TransportType
+  name: string
+  version?: string
+}
+
+type Tool = {
+  llmTool: ChatCompletionTool
+  execute: (args?: Record<string, unknown>) => ReturnType<typeof Client.prototype.callTool>
+} & MCPTool
 
 export type MessageType = O.Chat.Completions.ChatCompletionMessageParam
 
-export function createClient({ transport }: { transport: TransportType }) {
+export function createClient({ mcpServer }: { mcpServer: MCPServerOptions[] }) {
   const _client = new OpenAI({
     baseURL: 'https://api.deepseek.com',
     apiKey: `${process.env.API_KEY}`,
   })
 
-  const mcpClient = new Client({
-    name: 'example-client',
-    version: '0.0.1',
-  })
-  const connect = () => mcpClient.connect(transport)
+  const mcpClientsById = new Map<string, Client>()
+  const toolSet: Tool[] = []
 
-  const chat = async (messages: O.Chat.Completions.ChatCompletionMessageParam[]): Promise<O.Chat.Completions.ChatCompletion.Choice> => {
-    return mcpClient.listTools().then<ChatCompletionTool[]>(({ tools }) =>
-      tools.map(tool => ({
-        type: 'function',
-        function: {
-          name: tool.name,
-          parameters: tool.inputSchema,
-        },
-      })),
-    ).then((tools) => {
-      return _client.chat.completions.create({
-        model: 'deepseek-chat',
-        messages,
-        tools,
+  const connect = () => {
+    mcpServer.forEach(({ name, version = '0.0.1' }) => {
+      const mcpClient = new Client({
+        name,
+        version,
       })
-    }).then(({ choices: [choice] }) => {
-      messages.push(choice.message)
-      if (choice.finish_reason === 'tool_calls') {
-        choice.message.tool_calls!.forEach(async (tool) => {
-          const call_result = await mcpClient.callTool({
-            name: tool.function.name,
-            arguments: JSON.parse(tool.function.arguments), // TODO: Note that the model does not always generate valid JSON, and may hallucinate parameters not defined by your function schema.
-          })
-          messages.push({
-            role: 'tool',
-            tool_call_id: tool.id,
-            content: JSON.stringify(call_result.content),
+      mcpClientsById.set(name, mcpClient)
+    })
+    const connections = mcpServer.map(({ name, transport }) => {
+      const client = mcpClientsById.get(name)!
+      return client?.connect(transport)
+        .then(() =>
+          client?.listTools(),
+        )
+        .then(({ tools }) => {
+          tools.forEach((tool) => {
+            toolSet.push({
+              ...tool,
+              llmTool: {
+                type: 'function',
+                function: {
+                  name: tool.name,
+                  parameters: tool.inputSchema,
+                },
+              } as ChatCompletionTool,
+              execute: (args?: Record<string, unknown>) =>
+                client.callTool({
+                  name: tool.name,
+                  arguments: args,
+                }),
+            })
           })
         })
-        return chat(messages)
-      }
-      console.log('-1', JSON.stringify(messages, null, 2)) // TODO: replace with a logger
-      return choice
     })
+
+    return Promise.all(connections)
+  }
+
+  const chat = async (messages: O.Chat.Completions.ChatCompletionMessageParam[]): Promise<O.Chat.Completions.ChatCompletion.Choice> => {
+    return _client.chat.completions.create({
+      model: 'deepseek-chat',
+      messages,
+      tools: toolSet.map(ts => ts.llmTool),
+    })
+      .then(({ choices: [choice] }) => {
+        messages.push(choice.message)
+        // console.log('-1', JSON.stringify(messages, null, 2))
+        if (choice.finish_reason === 'tool_calls') {
+          const toolCallPromises = choice.message.tool_calls!.map((tool) => {
+            const toolDef = toolSet.find(t => t.name === tool.function.name)
+            if (!toolDef) {
+              console.error(`Tool ${tool.function.name} not found in registered tools.`)
+              return Promise.resolve() // Skip if tool not found
+            }
+            return toolDef.execute(JSON.parse(tool.function.arguments || '{}'))
+              .then((call_result) => {
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: tool.id,
+                  content: JSON.stringify(call_result.content),
+                })
+              })
+              .catch((err) => {
+                console.error(`Error executing tool ${tool.function.name}:`, err)
+              })
+          },
+          )
+          return Promise.all(toolCallPromises).then(() => chat(messages))
+        }
+        console.log('-1', JSON.stringify(messages, null, 2))
+        return choice
+      })
   }
 
   return {
