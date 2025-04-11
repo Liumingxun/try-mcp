@@ -16,7 +16,7 @@ const weatherTransport = new StdioClientTransport({
   args: ['jiti', './packages/server/weather.ts'],
 })
 
-const client = createClient({ mcpServer: [
+const client = createClient({ mcpServers: [
   {
     name: 'echo',
     transport: echoTransport,

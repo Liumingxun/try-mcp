@@ -22,7 +22,7 @@ type Tool = {
 
 export type MessageType = O.Chat.Completions.ChatCompletionMessageParam
 
-export function createClient({ mcpServer }: { mcpServer: MCPServerOptions[] }) {
+export function createClient({ mcpServers }: { mcpServers: MCPServerOptions[] }) {
   const _client = new OpenAI({
     baseURL: 'https://api.deepseek.com',
     apiKey: `${process.env.API_KEY}`,
@@ -32,18 +32,18 @@ export function createClient({ mcpServer }: { mcpServer: MCPServerOptions[] }) {
   const toolSet: Tool[] = []
 
   const connect = () => {
-    mcpServer.forEach(({ name, version = '0.0.1' }) => {
+    for (const { name, version = '0.0.1' } of mcpServers) {
       const mcpClient = new Client({
         name,
         version,
       })
       mcpClientsById.set(name, mcpClient)
-    })
-    const connections = mcpServer.map(({ name, transport }) => {
+    }
+    const connections = mcpServers.map(({ name, transport }) => {
       const client = mcpClientsById.get(name)!
-      return client?.connect(transport)
+      return client.connect(transport)
         .then(() =>
-          client?.listTools(),
+          client.listTools(),
         )
         .then(({ tools }) => {
           tools.forEach((tool) => {
@@ -77,9 +77,8 @@ export function createClient({ mcpServer }: { mcpServer: MCPServerOptions[] }) {
     })
       .then(({ choices: [choice] }) => {
         messages.push(choice.message)
-        // console.log('-1', JSON.stringify(messages, null, 2))
         if (choice.finish_reason === 'tool_calls') {
-          const toolCallPromises = choice.message.tool_calls!.map((tool) => {
+          const toolCalls = choice.message.tool_calls!.map((tool) => {
             const toolDef = toolSet.find(t => t.name === tool.function.name)
             if (!toolDef) {
               console.error(`Tool ${tool.function.name} not found in registered tools.`)
@@ -98,9 +97,8 @@ export function createClient({ mcpServer }: { mcpServer: MCPServerOptions[] }) {
               })
           },
           )
-          return Promise.all(toolCallPromises).then(() => chat(messages))
+          return Promise.all(toolCalls).then(() => chat(messages))
         }
-        console.log('-1', JSON.stringify(messages, null, 2))
         return choice
       })
   }
