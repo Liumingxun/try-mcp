@@ -1,5 +1,7 @@
 packages:
-  - 'packages/*'
-
+  - packages/*
+  - talk
 catalog:
   '@modelcontextprotocol/sdk': ^1.8.0
+onlyBuiltDependencies:
+  - esbuild
