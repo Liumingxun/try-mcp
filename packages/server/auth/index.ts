@@ -3,22 +3,12 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types'
 import { z } from 'zod'
-import { request } from './api'
+import { getPetDetail } from './api'
 
 const mcpServer = new McpServer({
   name: 'auth-pet-store-server',
   version: '0.0.1',
 })
-
-function getPetDetail({ petId }: { petId: string }, token?: string) {
-  return request({
-    method: 'get',
-    url: `/pet/${petId}`,
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
-}
 
 const tool_map = {
   getPetDetail,

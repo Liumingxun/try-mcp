@@ -8,7 +8,7 @@ loadEnvFile('.env')
 
 const echoTransport = new StdioClientTransport({
   command: 'pnpm',
-  args: ['jiti', './packages/server/index.ts'],
+  args: ['jiti', './packages/server/echo.ts'],
 })
 
 const weatherTransport = new StdioClientTransport({
@@ -37,7 +37,7 @@ const client = createClient({ mcpServers: [
 ] })
 
 const messages: MessageType[] = [
-  // {role: 'system', content: 'you are a echo bot that repeats everything I say with your tool'},
+  { role: 'system', content: 'You SHOULD use tools to gather information; no other methods are allowed. If your tools are insufficient to resolve the issue, you SHOULD directly inform the user.' },
 ]
 
 const token = process.env.TOKEN // verified | anything | undefined
