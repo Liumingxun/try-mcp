@@ -6,13 +6,43 @@ import { createClient } from './packages/client'
 
 loadEnvFile('.env')
 
-const transport = new StdioClientTransport({
+const echoTransport = new StdioClientTransport({
   command: 'pnpm',
-  args: ['jiti', './packages/server/index.ts'],
+  args: ['jiti', './packages/server/echo.ts'],
 })
-const client = createClient({ transport })
 
-client.connect().then(() => {
+const weatherTransport = new StdioClientTransport({
+  command: 'pnpm',
+  args: ['jiti', './packages/server/weather.ts'],
+})
+
+const authPetStoreTransport = new StdioClientTransport({
+  command: 'pnpm',
+  args: ['jiti', './packages/server/auth/index.ts'],
+})
+
+const client = createClient({ mcpServers: [
+  {
+    name: 'echo',
+    transport: echoTransport,
+  },
+  {
+    name: 'weather',
+    transport: weatherTransport,
+  },
+  {
+    name: 'auth-pet-store',
+    transport: authPetStoreTransport,
+  },
+] })
+
+const messages: MessageType[] = [
+  { role: 'system', content: 'You SHOULD use tools to gather information; no other methods are allowed. If your tools are insufficient to resolve the issue, you SHOULD directly inform the user.' },
+]
+
+const token = process.env.TOKEN // verified | anything | undefined
+
+client.connect(token).then(() => {
   process.stdout.write('> ')
   process.stdin.on('data', (chunk) => {
     const input = chunk.toString().trim()
@@ -20,16 +50,10 @@ client.connect().then(() => {
       return
     }
 
-    const messages: MessageType[] = [
-      {
-        role: 'system',
-        content: 'you\'re a echo bot, you must echo back what you receive with you tool',
-      },
-      {
-        role: 'user',
-        content: input,
-      },
-    ]
+    messages.push({
+      role: 'user',
+      content: input,
+    })
 
     client.chat(messages).then((response) => {
       process.stdout.write(`< ${response.message.content}\n`)

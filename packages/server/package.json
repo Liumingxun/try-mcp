@@ -12,7 +12,8 @@
     "serve": "jiti ./index.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:"
+    "@modelcontextprotocol/sdk": "catalog:",
+    "axios": "^1.8.4"
   },
   "devDependencies": {
     "zod": "^3.24.2"
