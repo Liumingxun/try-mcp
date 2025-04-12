@@ -31,7 +31,7 @@ export function createClient({ mcpServers }: { mcpServers: MCPServerOptions[] })
   const mcpClientsById = new Map<string, Client>()
   const toolSet: Tool[] = []
 
-  const connect = () => {
+  const connect = (token?: string) => {
     for (const { name, version = '0.0.1' } of mcpServers) {
       const mcpClient = new Client({
         name,
@@ -43,7 +43,9 @@ export function createClient({ mcpServers }: { mcpServers: MCPServerOptions[] })
       const client = mcpClientsById.get(name)!
       return client.connect(transport)
         .then(() =>
-          client.listTools(),
+          client.listTools({
+            token,
+          }),
         )
         .then(({ tools }) => {
           tools.forEach((tool) => {
@@ -60,6 +62,7 @@ export function createClient({ mcpServers }: { mcpServers: MCPServerOptions[] })
                 client.callTool({
                   name: tool.name,
                   arguments: args,
+                  token,
                 }),
             })
           })

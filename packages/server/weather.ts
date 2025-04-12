@@ -38,7 +38,7 @@ interface WeatherResponse {
 }
 
 async function getWeather(location: string) {
-  const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1`
+  const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&&countryCode=CN`
   const geocodingResponse = await fetch(geocodingUrl)
   const geocodingData = await geocodingResponse.json()
 

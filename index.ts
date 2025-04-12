@@ -16,6 +16,11 @@ const weatherTransport = new StdioClientTransport({
   args: ['jiti', './packages/server/weather.ts'],
 })
 
+const authPetStoreTransport = new StdioClientTransport({
+  command: 'pnpm',
+  args: ['jiti', './packages/server/auth/index.ts'],
+})
+
 const client = createClient({ mcpServers: [
   {
     name: 'echo',
@@ -25,13 +30,19 @@ const client = createClient({ mcpServers: [
     name: 'weather',
     transport: weatherTransport,
   },
+  {
+    name: 'auth-pet-store',
+    transport: authPetStoreTransport,
+  },
 ] })
 
 const messages: MessageType[] = [
   // {role: 'system', content: 'you are a echo bot that repeats everything I say with your tool'},
 ]
 
-client.connect().then(() => {
+const token = process.env.TOKEN // verified | anything | undefined
+
+client.connect(token).then(() => {
   process.stdout.write('> ')
   process.stdin.on('data', (chunk) => {
     const input = chunk.toString().trim()
